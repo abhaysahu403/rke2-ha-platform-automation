@@ -1,0 +1,44 @@
+name: RKE2 HA Platform Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy using Ansible on Bastion
+        run: |
+          ssh -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+
+          cd ~/ansible
+
+          git pull origin main
+
+          ansible-playbook -i inventory.ini playbooks/01-prerequisites.yml
+          ansible-playbook -i inventory.ini playbooks/02-install-rke2-server.yml
+          ansible-playbook -i inventory.ini playbooks/03-join-second-server.yml
+          ansible-playbook -i inventory.ini playbooks/04-join-workers.yml
+          ansible-playbook -i inventory.ini playbooks/05-cluster-verification.yml
+          ansible-playbook -i inventory.ini playbooks/06-install-haproxy.yml
+          ansible-playbook -i inventory.ini playbooks/07-install-helm.yml
+          ansible-playbook -i inventory.ini playbooks/08-install-cert-manager.yml
+          ansible-playbook -i inventory.ini playbooks/09-install-rancher.yml
+          ansible-playbook -i inventory.ini playbooks/10-install-argocd.yml
+
+          EOF
