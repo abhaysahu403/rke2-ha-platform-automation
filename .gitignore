@@ -1,0 +1,14 @@
+*.retry
+*.log
+*.swp
+*.tmp
+__pycache__/
+.vscode/
+.idea/
+
+# Never commit private keys
+*.pem
+*.key
+
+# Ansible artifacts
+*.retry

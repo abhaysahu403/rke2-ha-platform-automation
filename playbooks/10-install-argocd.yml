@@ -1,0 +1,63 @@
+---
+- name: Install ArgoCD
+  hosts: server-1
+  become: yes
+
+  vars:
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+
+  tasks:
+
+    - name: Create argocd namespace
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        /var/lib/rancher/rke2/bin/kubectl create namespace argocd --dry-run=client -o yaml | /var/lib/rancher/rke2/bin/kubectl apply -f -
+
+    - name: Install ArgoCD using Helm
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        helm upgrade --install argocd argo/argo-cd \
+          --namespace argocd \
+          --set server.service.type=NodePort \
+          --wait
+
+    - name: Wait for ArgoCD Server
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        /var/lib/rancher/rke2/bin/kubectl wait \
+        --for=condition=available \
+        deployment/argocd-server \
+        -n argocd \
+        --timeout=600s
+
+    - name: Get ArgoCD Pods
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        /var/lib/rancher/rke2/bin/kubectl get pods -n argocd
+      register: argocd_pods
+
+    - debug:
+        var: argocd_pods.stdout_lines
+
+    - name: Get NodePort
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        /var/lib/rancher/rke2/bin/kubectl get svc argocd-server \
+        -n argocd \
+        -o jsonpath='{.spec.ports[0].nodePort}'
+      register: nodeport
+
+    - debug:
+        msg: "ArgoCD NodePort: {{ nodeport.stdout }}"
+
+    - name: Get Initial Admin Password
+      shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        /var/lib/rancher/rke2/bin/kubectl \
+        -n argocd \
+        get secret argocd-initial-admin-secret \
+        -o jsonpath="{.data.password}" | base64 -d
+      register: admin_password
+
+    - debug:
+        msg: "Initial Password: {{ admin_password.stdout }}"

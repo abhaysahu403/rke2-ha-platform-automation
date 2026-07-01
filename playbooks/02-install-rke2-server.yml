@@ -1,0 +1,49 @@
+---
+- name: Install First RKE2 Server
+  hosts: server-1
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    - name: Download RKE2 installer
+      get_url:
+        url: https://get.rke2.io
+        dest: /tmp/install.sh
+        mode: '0755'
+
+    - name: Install RKE2 Server
+      shell: |
+        INSTALL_RKE2_TYPE=server sh /tmp/install.sh
+      args:
+        creates: /usr/local/bin/rke2
+
+    - name: Enable RKE2 Server
+      systemd:
+        name: rke2-server
+        enabled: yes
+
+    - name: Start RKE2 Server
+      systemd:
+        name: rke2-server
+        state: started
+
+    - name: Wait for node token
+      wait_for:
+        path: /var/lib/rancher/rke2/server/node-token
+        timeout: 600
+
+    - name: Read cluster token
+      slurp:
+        src: /var/lib/rancher/rke2/server/node-token
+      register: rke2_token
+
+    - name: Save token locally
+      copy:
+        content: "{{ rke2_token.content | b64decode }}"
+        dest: /tmp/rke2-node-token
+      delegate_to: localhost
+
+    - name: Display token
+      debug:
+        msg: "{{ rke2_token.content | b64decode }}"

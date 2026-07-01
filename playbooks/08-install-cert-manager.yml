@@ -1,0 +1,62 @@
+---
+- name: Install cert-manager
+  hosts: rke2_servers[0]
+  become: true
+
+  vars:
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+
+  tasks:
+
+    - name: Create namespace if missing
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        create namespace cert-manager --dry-run=client -o yaml | \
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} apply -f -
+      changed_when: false
+
+    - name: Install cert-manager
+      shell: |
+        helm upgrade --install cert-manager jetstack/cert-manager \
+          --namespace cert-manager \
+          --create-namespace \
+          --set crds.enabled=true \
+          --kubeconfig {{ kubeconfig }}
+      register: cert_install
+
+    - name: Wait for cert-manager
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        rollout status deployment/cert-manager \
+        -n cert-manager --timeout=300s
+      changed_when: false
+
+    - name: Wait for cainjector
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        rollout status deployment/cert-manager-cainjector \
+        -n cert-manager --timeout=300s
+      changed_when: false
+
+    - name: Wait for webhook
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        rollout status deployment/cert-manager-webhook \
+        -n cert-manager --timeout=300s
+      changed_when: false
+
+    - name: Show Pods
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get pods -n cert-manager
+      register: pods
+      changed_when: false
+
+    - debug:
+        var: pods.stdout_lines

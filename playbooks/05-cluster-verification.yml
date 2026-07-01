@@ -1,0 +1,28 @@
+---
+- name: Verify RKE2 Cluster
+  hosts: server-1
+  become: true
+
+  tasks:
+
+    - name: Wait
+      pause:
+        seconds: 30
+
+    - name: Get Nodes
+      shell: |
+        export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+        /var/lib/rancher/rke2/bin/kubectl get nodes -o wide
+      register: nodes
+
+    - debug:
+        var: nodes.stdout_lines
+
+    - name: Get Pods
+      shell: |
+        export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+        /var/lib/rancher/rke2/bin/kubectl get pods -A
+      register: pods
+
+    - debug:
+        var: pods.stdout_lines

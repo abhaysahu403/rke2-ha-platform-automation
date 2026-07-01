@@ -1,0 +1,55 @@
+---
+- name: Install and Configure HAProxy
+  hosts: bastion-node
+  become: true
+
+  vars:
+    haproxy_cfg: /etc/haproxy/haproxy.cfg
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+
+    - name: Backup existing configuration
+      copy:
+        src: "{{ haproxy_cfg }}"
+        dest: "{{ haproxy_cfg }}.bak"
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Deploy HAProxy configuration
+      template:
+        src: ../templates/haproxy.cfg.j2
+        dest: "{{ haproxy_cfg }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Validate configuration
+      command: haproxy -c -f /etc/haproxy/haproxy.cfg
+      changed_when: false
+
+    - name: Enable HAProxy
+      systemd:
+        name: haproxy
+        enabled: yes
+
+    - name: Restart HAProxy
+      systemd:
+        name: haproxy
+        state: restarted
+
+    - name: Verify HAProxy
+      systemd:
+        name: haproxy
+      register: haproxy_status
+
+    - debug:
+        var: haproxy_status.status.ActiveState

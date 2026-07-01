@@ -1,0 +1,49 @@
+---
+- name: Install Rancher
+  hosts: rke2_servers[0]
+  become: true
+
+  vars:
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+    rancher_hostname: rancher.local
+
+  tasks:
+
+    - name: Create cattle-system namespace
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        create namespace cattle-system --dry-run=client -o yaml | \
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} apply -f -
+      changed_when: false
+
+    - name: Install Rancher
+      shell: |
+        helm upgrade --install rancher rancher-stable/rancher \
+          --namespace cattle-system \
+          --set hostname={{ rancher_hostname }} \
+          --set bootstrapPassword=admin \
+          --set replicas=3 \
+          --kubeconfig {{ kubeconfig }}
+      register: rancher_install
+
+    - name: Wait for Rancher Deployment
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        rollout status deployment/rancher \
+        -n cattle-system \
+        --timeout=600s
+      changed_when: false
+
+    - name: Show Rancher Pods
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get pods -n cattle-system
+      register: rancher_pods
+      changed_when: false
+
+    - debug:
+        var: rancher_pods.stdout_lines

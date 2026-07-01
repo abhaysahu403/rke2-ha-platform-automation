@@ -1,0 +1,35 @@
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    daemon
+    maxconn 2000
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout client 1m
+    timeout server 1m
+
+frontend kubernetes-api
+    bind *:6443
+    default_backend kubernetes-api-backend
+
+backend kubernetes-api-backend
+    balance roundrobin
+    option tcp-check
+
+    server server1 10.0.1.195:6443 check
+    server server2 10.0.1.115:6443 check
+
+frontend rke2-registration
+    bind *:9345
+    default_backend rke2-registration-backend
+
+backend rke2-registration-backend
+    balance roundrobin
+    option tcp-check
+
+    server server1 10.0.1.195:9345 check
+    server server2 10.0.1.115:9345 check

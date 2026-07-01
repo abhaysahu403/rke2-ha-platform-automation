@@ -1,0 +1,45 @@
+---
+- name: Join Worker Nodes to RKE2 Cluster
+  hosts: rke2_agents
+  become: true
+
+  vars:
+    rke2_server_ip: "10.0.1.195"
+
+  tasks:
+
+    - name: Read cluster token from Server-1
+      slurp:
+        src: /var/lib/rancher/rke2/server/node-token
+      delegate_to: server-1
+      register: node_token
+
+    - name: Create RKE2 directory
+      file:
+        path: /etc/rancher/rke2
+        state: directory
+        mode: '0755'
+
+    - name: Create worker config
+      copy:
+        dest: /etc/rancher/rke2/config.yaml
+        content: |
+          server: https://{{ rke2_server_ip }}:9345
+          token: "{{ node_token.content | b64decode | trim }}"
+
+    - name: Download installer
+      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
+
+    - name: Enable agent
+      systemd:
+        name: rke2-agent
+        enabled: yes
+
+    - name: Start agent
+      systemd:
+        name: rke2-agent
+        state: started
+
+    - name: Wait for node registration
+      pause:
+        seconds: 30
