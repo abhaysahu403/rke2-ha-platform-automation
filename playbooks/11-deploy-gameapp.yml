@@ -1,0 +1,71 @@
+---
+- name: Deploy GameApp using ArgoCD
+  hosts: rke2_servers[0]
+  become: true
+
+  vars:
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+
+  tasks:
+
+    - name: Copy ArgoCD Application manifest
+      copy:
+        src: ../files/argocd-application.yaml
+        dest: /tmp/argocd-application.yaml
+        mode: "0644"
+
+    - name: Apply ArgoCD Application
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        apply -f /tmp/argocd-application.yaml
+
+    - name: Wait for Application CR
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        wait --for=condition=Synced \
+        application/gameapp \
+        -n argocd \
+        --timeout=300s
+      ignore_errors: true
+
+    - name: Show Application
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get application gameapp -n argocd
+      register: app
+
+    - debug:
+        var: app.stdout_lines
+
+    - name: Show Game Pods
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get pods -n gameapp
+      register: pods
+
+    - debug:
+        var: pods.stdout_lines
+
+    - name: Show Services
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get svc -n gameapp
+      register: svc
+
+    - debug:
+        var: svc.stdout_lines
+
+    - name: Show Ingress
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl \
+        --kubeconfig {{ kubeconfig }} \
+        get ingress -n gameapp
+      register: ingress
+
+    - debug:
+        var: ingress.stdout_lines
